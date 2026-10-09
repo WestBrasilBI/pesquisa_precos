@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0c4976">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Pesquisa Preço">
+<title>Pesquisa de Preço</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header id="topo" hidden>
+  <div class="hrow">
+    <button class="icon-btn" id="btnVoltar" aria-label="Voltar" hidden>
+      <svg viewBox="0 0 24 24" width="22" height="22"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <img class="hlogo" id="hLogo" src="logo-west-branco.png" alt="West Brasil">
+    <div class="titulo">
+      <div class="logo" id="hTitulo">Pesquisa de Preço</div>
+      <div class="sub" id="hSub"></div>
+    </div>
+    <button class="icon-btn" id="btnSair" aria-label="Sair">
+      <svg viewBox="0 0 24 24" width="21" height="21"><path d="M15 4h3a2 2 0 012 2v12a2 2 0 01-2 2h-3M10 17l5-5-5-5M15 12H4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </div>
+  <div class="passos" id="passos" hidden></div>
+</header>
+
+<main id="app"></main>
+
+<!-- Câmera: só captura ao vivo, sem acesso à galeria -->
+<div class="camera" id="camera" hidden>
+  <video id="camVideo" playsinline autoplay muted></video>
+  <div class="cam-topo"><span id="camTitulo">Foto</span></div>
+  <div class="cam-guia"></div>
+  <div class="cam-barra">
+    <button class="cam-cancelar" id="camCancelar">Cancelar</button>
+    <button class="cam-disparo" id="camDisparo" aria-label="Tirar foto"></button>
+    <span class="cam-espaco"></span>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+<div class="modal" id="modal" hidden><div class="modal-box" id="modalBox"></div></div>
+
+<script src="data/data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
