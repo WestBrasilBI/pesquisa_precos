@@ -3,7 +3,7 @@
  * (SPA, somente a organização, redirect https://westbrasilbi.github.io/pesquisa_precos/).
  * Permissões delegadas aprovadas: Power BI Service → GraphQLApi.Execute.All e Microsoft Graph → User.Read. */
 window.CONFIG = {
-  VERSAO: '2026.10.15b',
+  VERSAO: '2026.10.15c',
 
   TENANT_ID: '1516fbda-e5c5-429f-8c31-bf8dc4dedc55',   // WEST
   CLIENT_ID: '7b109c34-9e32-47c8-970d-4f03ed0c0d08',   // West Brasil - Pesquisa de Preços

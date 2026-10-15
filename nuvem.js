@@ -61,7 +61,16 @@ const Nuvem = (() => {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${t}` },
       body: JSON.stringify(variables ? { query, variables } : { query }),
     });
-    if (!r.ok) throw new Error(`API do banco: HTTP ${r.status}`);
+    if (!r.ok) {
+      // o corpo do erro do Fabric diz o motivo (ex.: sem permissão na API): mostra para o BI diagnosticar
+      let motivo = '';
+      try {
+        const t = await r.text();
+        try { const j = JSON.parse(t); motivo = [j.errorCode || j.code, j.message || (j.error && j.error.message)].filter(Boolean).join(': '); }
+        catch { motivo = t; }
+      } catch { /* sem corpo */ }
+      throw new Error(`API do banco: HTTP ${r.status}${motivo ? ' (' + String(motivo).slice(0, 180) + ')' : ''}`);
+    }
     const d = await r.json();
     if (d.errors && d.errors.length) throw new Error(d.errors.map(e => e.message).join(' | '));
     return d.data;
