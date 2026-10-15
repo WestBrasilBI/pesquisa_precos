@@ -23,12 +23,26 @@ const Nuvem = (() => {
     });
     await app.initialize();
     const r = await app.handleRedirectPromise();
-    conta = (r && r.account) || app.getAllAccounts()[0] || null;
+    // só contas @westbrasil.com.br do tenant da West; convidados externos e outras contas são recusados
+    const contas = [(r && r.account), ...app.getAllAccounts()].filter(Boolean);
+    const recusada = contas.find(c => !contaPermitida(c));
+    conta = contas.find(contaPermitida) || null;
+    if (recusada && !conta) {
+      await app.clearCache({ account: recusada }).catch(() => {});
+      throw new Error(`a conta ${recusada.username} não é da West Brasil. Entre com o seu e-mail @${CFG.DOMINIO_PERMITIDO}.`);
+    }
     if (conta) app.setActiveAccount(conta);
     return conta;
   }
 
-  const entrar = () => app.loginRedirect({ scopes: CFG.ESCOPO_API, prompt: 'select_account' });
+  function contaPermitida(c) {
+    const email = String(c.username || '').toLowerCase();
+    return email.endsWith('@' + CFG.DOMINIO_PERMITIDO.toLowerCase()) && c.tenantId === CFG.TENANT_ID;
+  }
+
+  const entrar = () => app.loginRedirect({
+    scopes: CFG.ESCOPO_API, prompt: 'select_account', extraQueryParameters: { domain_hint: CFG.DOMINIO_PERMITIDO },
+  });
   const sair = () => app.logoutRedirect({ account: conta, postLogoutRedirectUri: redirectUri });
 
   async function token(escopos) {

@@ -3,10 +3,12 @@
  * (SPA, somente a organização, redirect https://westbrasilbi.github.io/pesquisa_precos/).
  * Permissões delegadas aprovadas: Power BI Service → GraphQLApi.Execute.All e Microsoft Graph → User.Read. */
 window.CONFIG = {
-  VERSAO: '2026.10.15',
+  VERSAO: '2026.10.15b',
 
   TENANT_ID: '1516fbda-e5c5-429f-8c31-bf8dc4dedc55',   // WEST
   CLIENT_ID: '7b109c34-9e32-47c8-970d-4f03ed0c0d08',   // West Brasil - Pesquisa de Preços
+  // Só entra conta com este domínio (e do tenant acima). Convidados externos e contas @...onmicrosoft.com são recusados.
+  DOMINIO_PERMITIDO: 'westbrasil.com.br',
 
   // API for GraphQL "api_pesquisa_preco" (banco sqldb_west_coleta_preco, workspace Banco Fabric - B.I)
   GRAPHQL_URL: 'https://api.fabric.microsoft.com/v1/workspaces/c20fb156-4b2c-4186-b729-eda76f5da581/graphqlapis/7cfcfbde-396a-473e-ac8c-a54b8fdda2f3/graphql',
