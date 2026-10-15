@@ -1075,6 +1075,14 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.se
   if (!conta) return irPara('login');
   sessao = { email: conta.username.toLowerCase(), nome: conta.name || conta.username };
   irPara('inicio');
+  if (new URLSearchParams(location.search).has('diag') && Nuvem.diagnostico) {
+    app.innerHTML = '<div class="vazio">Rodando diagnóstico…</div>';
+    const d = await Nuvem.diagnostico();
+    app.innerHTML = `<div class="card"><h3 style="margin-bottom:10px">Diagnóstico da conexão</h3>
+      <div class="rev">${Object.entries(d).map(([k, v]) => `<div class="l" style="display:block"><b>${esc(k)}</b><br><span style="word-break:break-all;font-size:12.5px">${esc(Array.isArray(v) ? v.join(' ') : v)}</span></div>`).join('')}</div></div>
+      <p class="dica" style="margin-top:12px">Tire um print desta tela e mande para o suporte do app. O token não aparece aqui.</p>`;
+    return;
+  }
   await prepararClientes().catch(() => {}); // antes da fila: completa o ClienteKey das pesquisas antigas
   await sincronizar();
   if (tela === 'inicio') telaInicio();

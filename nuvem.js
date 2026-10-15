@@ -169,7 +169,31 @@ const Nuvem = (() => {
     return (await r.json()).webUrl;
   }
 
+  // Tela de diagnóstico (?diag=1): dados do token (sem o token) e a resposta crua da API nos dois endereços
+  async function diagnostico() {
+    const out = { versao: CFG.VERSAO, conta: conta && conta.username, tenantDaConta: conta && conta.tenantId };
+    let t;
+    try {
+      t = (await app.acquireTokenSilent({ scopes: CFG.ESCOPO_API, account: conta })).accessToken;
+      const b = t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+      const p = JSON.parse(decodeURIComponent(escape(atob(b + '='.repeat((4 - b.length % 4) % 4)))));
+      Object.assign(out, { aud: p.aud, scp: p.scp, tid: p.tid, upn: p.upn || p.unique_name || p.preferred_username,
+        appid: p.appid || p.azp, validoAte: new Date(p.exp * 1000).toLocaleString('pt-BR') });
+    } catch (e) { out.erroToken = e.message; return out; }
+    const url2 = CFG.GRAPHQL_URL.replace('https://api.fabric.microsoft.com/v1/workspaces/c20fb156-4b2c-4186-b729-eda76f5da581',
+      'https://c20fb1564b2c4186b729eda76f5da581.zc2.graphql.fabric.microsoft.com/v1/workspaces/c20fb156-4b2c-4186-b729-eda76f5da581');
+    for (const [nome, url] of [['api.fabric', CFG.GRAPHQL_URL], ['regional', url2]]) {
+      try {
+        const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t },
+          body: JSON.stringify({ query: '{ clientes(first: 1) { items { Codigo } } }' }) });
+        out[nome] = `HTTP ${r.status} ${(await r.text()).slice(0, 400) || '(sem corpo)'}`;
+      } catch (e) { out[nome] = 'falhou: ' + e.message; }
+    }
+    return out;
+  }
+
   return {
+    diagnostico,
     configurado, fotosConfiguradas, iniciar, entrar, sair,
     get conta() { return conta; },
     carregarClientes, enviarPesquisa, atualizarPesquisa, anular, historico, subirFoto,
