@@ -1,9 +1,10 @@
 /* Configuração da conexão do app com o Fabric e o SharePoint.
  * App registrado no Microsoft Entra ID pela TI em 15/10/2026: "West Brasil - Pesquisa de Preços"
  * (SPA, somente a organização, redirect https://westbrasilbi.github.io/pesquisa_precos/).
- * Permissões delegadas aprovadas: Power BI Service → GraphQLApi.Execute.All e Microsoft Graph → User.Read. */
+ * Permissões delegadas aprovadas: Power BI Service → GraphQLApi.Execute.All, Microsoft Graph → User.Read e
+ * Microsoft Graph → Files.SelectedOperations.Selected (write só na pasta das fotos, 21/10/2026). */
 window.CONFIG = {
-  VERSAO: '2026.10.15d',
+  VERSAO: '2026.10.21',
 
   TENANT_ID: '1516fbda-e5c5-429f-8c31-bf8dc4dedc55',   // WEST
   CLIENT_ID: '7b109c34-9e32-47c8-970d-4f03ed0c0d08',   // West Brasil - Pesquisa de Preços
@@ -14,14 +15,16 @@ window.CONFIG = {
   GRAPHQL_URL: 'https://api.fabric.microsoft.com/v1/workspaces/c20fb156-4b2c-4186-b729-eda76f5da581/graphqlapis/7cfcfbde-396a-473e-ac8c-a54b8fdda2f3/graphql',
   ESCOPO_API: ['https://analysis.windows.net/powerbi/api/GraphQLApi.Execute.All'],
 
-  // FOTOS NO SHAREPOINT — DESLIGADO até a TI aprovar a permissão.
-  // A TI não liberou Files.ReadWrite.All (acesso a todos os arquivos do usuário). A alternativa de menor privilégio
-  // é Lists.SelectedOperations.Selected (delegada) + permissão "write" do app só na biblioteca das fotos.
-  // Enquanto FOTOS_NUVEM for false, as fotos ficam no celular e a pesquisa sobe sem o link.
-  FOTOS_NUVEM: false,
-  ESCOPO_FOTOS: ['https://graph.microsoft.com/Lists.SelectedOperations.Selected'],
-  // driveId: id da biblioteca "Pesquisa de Preço - Fotos" (com permissão só na biblioteca o app não lê o site para achá-la)
-  SHAREPOINT: { host: 'westbrasil.sharepoint.com', site: '/sites/RepositorioBI', biblioteca: 'Pesquisa de Preço - Fotos', driveId: '' },
+  // FOTOS NO SHAREPOINT — LIGADO em 21/10/2026.
+  // A TI concedeu ao app "write" SÓ na pasta abaixo (Files.SelectedOperations.Selected, delegada; 201 Created no Graph).
+  // O acesso real é a interseção do app (só essa pasta) com o usuário. Files.ReadWrite.All foi recusada pela TI.
+  // Pasta: RepositorioBI / Documentos Compartilhados / ArquivosBI / Base Excel / Rafa / PESQUISA DE PREÇO / Pesquisa de Preço - Fotos
+  FOTOS_NUVEM: true,
+  ESCOPO_FOTOS: ['https://graph.microsoft.com/Files.SelectedOperations.Selected'],
+  SHAREPOINT: {
+    driveId: 'b!KvJ0PdsG8EC3xtmOqBH21Wsrj4dStQFEjpulHIn_9VtItG2HDsWuTIsP3EX_haAF', // biblioteca Documentos Compartilhados
+    pastaId: '01GM3U576V4CDLQFKQTBC2HT6A64TMN2CV',                                 // pasta Pesquisa de Preço - Fotos
+  },
 
   // Lista de clientes guardada no celular: recarrega do banco depois deste tempo (horas)
   CLIENTES_VALIDADE_H: 12,

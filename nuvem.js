@@ -11,9 +11,9 @@ const Nuvem = (() => {
   if (CFG.MODO_TESTE) return modoTeste();
   const SP = CFG.SHAREPOINT || {};
   const configurado = !!(CFG.CLIENT_ID && CFG.TENANT_ID && window.msal);
-  const fotosConfiguradas = !!(CFG.FOTOS_NUVEM && (SP.driveId || (SP.host && SP.site && SP.biblioteca)));
+  const fotosConfiguradas = !!(CFG.FOTOS_NUVEM && SP.driveId && SP.pastaId);
   const redirectUri = location.origin + location.pathname.replace(/index\.html$/, '');
-  let app = null, conta = null, driveId = null;
+  let app = null, conta = null;
 
   async function iniciar() {
     if (!configurado) return null;
@@ -45,10 +45,12 @@ const Nuvem = (() => {
   });
   const sair = () => app.logoutRedirect({ account: conta, postLogoutRedirectUri: redirectUri });
 
-  async function token(escopos) {
+  async function token(escopos, interativo = true) {
     try {
       return (await app.acquireTokenSilent({ scopes: escopos, account: conta })).accessToken;
     } catch (e) {
+      // fotos: nunca tira o vendedor da tela no meio do envio; o erro fica registrado e tenta de novo depois
+      if (!interativo) throw new Error('sem autorização para enviar fotos (' + (e.errorCode || e.message) + ')');
       if (e instanceof msal.InteractionRequiredAuthError) await app.acquireTokenRedirect({ scopes: escopos, account: conta });
       throw e;
     }
@@ -144,28 +146,22 @@ const Nuvem = (() => {
     return lista;
   }
 
-  /* ---------- fotos no SharePoint (Microsoft Graph) */
-  async function resolverDrive() {
-    if (driveId) return driveId;
-    if (SP.driveId) return (driveId = SP.driveId); // permissão só na biblioteca: não dá para ler o site
-    const h = { Authorization: 'Bearer ' + await token(CFG.ESCOPO_FOTOS) };
-    const rs = await fetch(`https://graph.microsoft.com/v1.0/sites/${SP.host}:${SP.site}`, { headers: h });
-    if (!rs.ok) throw new Error(`SharePoint: site não encontrado (HTTP ${rs.status})`);
-    const site = await rs.json();
-    const rd = await fetch(`https://graph.microsoft.com/v1.0/sites/${site.id}/drives`, { headers: h });
-    const d = ((await rd.json()).value || []).find(x => x.name === SP.biblioteca);
-    if (!d) throw new Error('SharePoint: biblioteca não encontrada: ' + SP.biblioteca);
-    return (driveId = d.id);
-  }
-
+  /* ---------- fotos no SharePoint (Microsoft Graph)
+   * O app só tem permissão na pasta "Pesquisa de Preço - Fotos" (driveId + pastaId no config.js), por isso grava
+   * pelo caminho relativo a ela: /drives/{driveId}/items/{pastaId}:/{subpastas}/{arquivo}:/content.
+   * As subpastas (mês/cliente) são criadas pelo próprio SharePoint no envio. */
   async function subirFoto(blob, caminho) {
-    const id = await resolverDrive();
-    const r = await fetch(`https://graph.microsoft.com/v1.0/drives/${id}/root:/${encodeURI(caminho)}:/content`, {
+    const url = `https://graph.microsoft.com/v1.0/drives/${SP.driveId}/items/${SP.pastaId}:/${caminho.split('/').map(encodeURIComponent).join('/')}:/content`;
+    const r = await fetch(url, {
       method: 'PUT',
-      headers: { Authorization: 'Bearer ' + await token(CFG.ESCOPO_FOTOS), 'Content-Type': 'image/jpeg' },
+      headers: { Authorization: 'Bearer ' + await token(CFG.ESCOPO_FOTOS, false), 'Content-Type': 'image/jpeg' },
       body: blob,
     });
-    if (!r.ok) throw new Error(`SharePoint: falha ao enviar foto (HTTP ${r.status})`);
+    if (!r.ok) {
+      let motivo = '';
+      try { const j = await r.json(); motivo = (j.error && (j.error.code + ': ' + j.error.message)) || ''; } catch { /* sem corpo */ }
+      throw new Error(`SharePoint: falha ao enviar foto (HTTP ${r.status}${motivo ? ' ' + motivo.slice(0, 160) : ''})`);
+    }
     return (await r.json()).webUrl;
   }
 
