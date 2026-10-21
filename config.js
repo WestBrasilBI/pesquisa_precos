@@ -4,7 +4,7 @@
  * Permissões delegadas aprovadas: Power BI Service → GraphQLApi.Execute.All, Microsoft Graph → User.Read e
  * Microsoft Graph → Files.SelectedOperations.Selected (write só na pasta das fotos, 21/10/2026). */
 window.CONFIG = {
-  VERSAO: '2026.10.21b',
+  VERSAO: '2026.10.21c',
 
   TENANT_ID: '1516fbda-e5c5-429f-8c31-bf8dc4dedc55',   // WEST
   CLIENT_ID: '7b109c34-9e32-47c8-970d-4f03ed0c0d08',   // West Brasil - Pesquisa de Preços

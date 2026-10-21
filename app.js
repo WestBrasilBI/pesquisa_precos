@@ -395,7 +395,8 @@ function telaCliente() {
     <div class="lista" id="res"></div>`;
   const q = $('#q');
   const buscar = () => {
-    const tk = tokens(q.value);
+    // código digitado com zeros à esquerda (005729) = código do banco sem zeros (5729)
+    const tk = tokens(q.value).map(t => /^\d+$/.test(t) ? (t.replace(/^0+(?=\d)/, '')) : t);
     const res = $('#res');
     if (!tk.length) {
       const atual = P.cliente && CLIENTES.find(c => c.cod === P.cliente.cod);
@@ -410,7 +411,7 @@ function telaCliente() {
     const soNum = /^\d+$/.test(q.value.trim());
     let lista = CLIENTES.filter(c => tk.every(t => c.k.includes(t)));
     if (soNum) {
-      const v = q.value.trim();
+      const v = q.value.trim().replace(/^0+(?=\d)/, '');
       lista.sort((a, b) => (b.cod === v) - (a.cod === v) || b.cod.startsWith(v) - a.cod.startsWith(v));
     }
     res.innerHTML = lista.length ? '' : '<div class="vazio">Nenhum cliente encontrado.</div>';
