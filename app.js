@@ -911,6 +911,13 @@ async function migrarAntigas() {
   }
 }
 
+// Pasta das fotos no SharePoint: {ano}/{login antes do @}/{código do cliente}/{código do produto Mobil}
+// (código do produto = 1º SKU da família Mobil escolhida, ex.: 2026/rafael.leonardo/115/123073)
+function pastaFotos(p) {
+  const limpo = s => String(s || '').trim().replace(/["*:<>?/\\|#%]/g, '-') || 'sem-codigo';
+  return [String(p.data).slice(0, 4), limpo(p.usuario.split('@')[0]), limpo(p.cliente.cod), limpo((p.mobil.codigos || [])[0])].join('/');
+}
+
 // Sobe a fila: fotos para o SharePoint (se configurado), depois a pesquisa para o banco.
 async function sincronizar() {
   const r = { enviados: 0, erros: 0, ultimoErro: '' };
@@ -933,13 +940,15 @@ async function sincronizar() {
           continue;
         }
         if (p.anulada) continue;
-        if (Nuvem.fotosConfiguradas && p.fotos && p.fotos.produto && !p.fotosUrl) {
+        // pasta diferente da regra atual (ex.: enviadas na regra antiga AAAA/MM/cliente) = envia de novo e troca o link
+        if (Nuvem.fotosConfiguradas && p.fotos && p.fotos.produto && (!p.fotosUrl || p.fotosPasta !== pastaFotos(p))) {
           try {
-            const pasta = `${p.data.slice(0, 7).replace('-', '/')}/${p.cliente.cod}`;
+            const pasta = pastaFotos(p);
             p.fotosUrl = {
               produto: await Nuvem.subirFoto(p.fotos.produto, `${pasta}/${p.id}_produto.jpg`),
               etiqueta: await Nuvem.subirFoto(p.fotos.etiqueta, `${pasta}/${p.id}_etiqueta.jpg`),
             };
+            p.fotosPasta = pasta;
             delete p.erroFotos;
             await DB.salvar(p);
             if (p.enviado) await Nuvem.atualizarPesquisa(p.id, { FotoProdutoUrl: p.fotosUrl.produto, FotoEtiquetaUrl: p.fotosUrl.etiqueta });
