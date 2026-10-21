@@ -124,6 +124,8 @@ async function prepararClientes(forcar = false) {
 
 function textoClientes() {
   if (CLI.estado === 'carregando') return `Carregando sua carteira de clientes… ${CLI.qtd ? CLI.qtd.toLocaleString('pt-BR') : ''}`;
+  if (CLI.estado === 'erro' && /HTTP 401|HTTP 403/.test(CLI.erro))
+    return `Seu acesso ao app ainda não foi liberado (${sessao.email}). Peça ao time de BI para incluir seu e-mail no grupo "Vendedores - Pesquisa de Preço" e depois feche e abra o app.`;
   if (CLI.estado === 'erro') return `Não foi possível carregar os clientes: ${CLI.erro}`;
   if (CLI.estado === 'ok' && !CLIENTES.length) return 'Sua conta não tem carteira de clientes. Peça ao BI para liberar seu acesso.';
   if (CLI.estado === 'ok') return `${CLIENTES.length.toLocaleString('pt-BR')} clientes na sua carteira · atualizado ${dataHora(CLI.atualizadoEm)}`;
