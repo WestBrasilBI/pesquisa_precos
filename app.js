@@ -100,7 +100,9 @@ function definirClientes(lista) {
 
 async function prepararClientes(forcar = false) {
   const cache = await DB.lerCache('clientes').catch(() => null);
-  const valido = cache && cache.email === sessao.email;
+  // lista guardada só vale se for do mesmo login, da mesma "rodada" de acessos (CONFIG.CLIENTES_RODADA) e não vazia:
+  // trocar a rodada no config.js obriga todos os celulares a buscar os clientes de novo
+  const valido = cache && cache.email === sessao.email && cache.rodada === CONFIG.CLIENTES_RODADA && cache.lista.length > 0;
   if (valido && !CLIENTES.length) {
     definirClientes(cache.lista);
     Object.assign(CLI, { estado: 'ok', atualizadoEm: cache.em, qtd: cache.lista.length });
@@ -113,7 +115,7 @@ async function prepararClientes(forcar = false) {
     const lista = await Nuvem.carregarClientes(n => { CLI.qtd = n; atualizarAvisoClientes(); });
     definirClientes(lista);
     const em = Date.now();
-    await DB.gravarCache({ k: 'clientes', email: sessao.email, em, lista });
+    await DB.gravarCache({ k: 'clientes', email: sessao.email, em, lista, rodada: CONFIG.CLIENTES_RODADA });
     Object.assign(CLI, { estado: 'ok', atualizadoEm: em, qtd: lista.length });
   } catch (e) {
     Object.assign(CLI, { estado: CLIENTES.length ? 'ok' : 'erro', erro: e.message });
