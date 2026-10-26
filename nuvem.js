@@ -113,7 +113,7 @@ const Nuvem = (() => {
       SegmentoMobil: reg.mobil.segmento, ViscosidadeMobil: reg.mobil.viscosidade,
       IdConcorrente: reg.conc.id, ProdutoConcorrente: reg.conc.nome, Marca: reg.conc.marca, Grupo: reg.conc.grupo,
       Similaridade: reg.similaridade, Embalagem: reg.embalagem, Preco: reg.preco,
-      PrecoPorUnidade: reg.precoUnidade, Unidade: reg.unidade, Observacao: montarObservacao(reg),
+      PrecoPorUnidade: reg.precoUnidade, Unidade: reg.unidade, Observacao: (reg.obs || '').trim(), ...camposSemFoto(reg),
       FotoProdutoUrl: f.produto, FotoEtiquetaUrl: f.etiqueta, VersaoApp: reg.versao || CFG.VERSAO,
     };
     try {
@@ -125,28 +125,26 @@ const Nuvem = (() => {
     }
   }
 
-  /* "Sem foto": o banco ainda não tem colunas para responsável e contato, então vão na Observacao
-   * (nvarchar 300) num formato fixo, fácil de separar no BI:
-   *   [SEM FOTO] Responsável: Fulano | Contato: (19) 99999-0000 | Obs: texto do vendedor
-   * Quando o Steven criar colunas próprias, trocar para gravá-las aqui. */
-  function montarObservacao(reg) {
-    const obs = (reg.obs || '').trim();
-    if (!reg.semFoto) return obs;
-    const cab = `[SEM FOTO] Responsável: ${reg.responsavel} | Contato: ${reg.contatoResponsavel}`.slice(0, 300);
-    if (!obs) return cab;
-    const resto = 300 - cab.length - ' | Obs: '.length;
-    return resto > 10 ? `${cab} | Obs: ${obs.length > resto ? obs.slice(0, resto - 1) + '…' : obs}` : cab;
-  }
+  /* "Sem foto": colunas próprias no banco desde 26/10/2026 (SemFoto bit, ResponsavelInformacao nvarchar 150,
+   * ContatoResponsavel nvarchar 100). A Observacao volta a ter só o texto do vendedor. */
+  const camposSemFoto = reg => reg.semFoto
+    ? { SemFoto: true, ResponsavelInformacao: (reg.responsavel || '').slice(0, 150), ContatoResponsavel: (reg.contatoResponsavel || '').slice(0, 100) }
+    : { SemFoto: false };
 
-  const atualizarPesquisa = (id, campos) =>
-    gql(`mutation { updatePesquisaPreco(Id: ${JSON.stringify(id)}, item: ${gqlObj(campos)}) { Id } }`);
+  // nulos: colunas a esvaziar (ex.: ['Observacao']); o gqlObj ignora vazio/null, então vão à parte
+  const atualizarPesquisa = (id, campos, nulos = []) => {
+    const partes = gqlObj(campos).slice(2, -2).trim();
+    const obj = '{ ' + [partes, ...nulos.map(c => `${c}: null`)].filter(Boolean).join(', ') + ' }';
+    return gql(`mutation { updatePesquisaPreco(Id: ${JSON.stringify(id)}, item: ${obj}) { Id } }`);
+  };
 
   const anular = id => gql(`mutation { updatePesquisaPreco(Id: ${JSON.stringify(id)}, item: { Anulada: true }) { Id Anulada } }`);
 
   async function historico(max = 1000) {
     const campos = `Id DataHora UsuarioEmail ClienteKey CodCliente ClienteNome Cidade VendedorCarteira SegmentoCliente
       ProdutoMobil CodigosMobil IdConcorrente ProdutoConcorrente Marca Grupo Similaridade
-      Embalagem Preco PrecoPorUnidade Unidade Observacao FotoProdutoUrl FotoEtiquetaUrl`;
+      Embalagem Preco PrecoPorUnidade Unidade Observacao FotoProdutoUrl FotoEtiquetaUrl
+      SemFoto ResponsavelInformacao ContatoResponsavel`;
     const lista = [];
     let depois = null;
     do {
@@ -202,7 +200,7 @@ const Nuvem = (() => {
   }
 
   return {
-    diagnostico, lerObservacao,
+    diagnostico, lerObservacao, camposSemFoto,
     configurado, fotosConfiguradas, iniciar, entrar, sair,
     get conta() { return conta; },
     carregarClientes, enviarPesquisa, atualizarPesquisa, anular, historico, subirFoto,
@@ -236,7 +234,8 @@ function modoTeste() {
   };
 }
 
-// Lê a Observacao gravada no banco e separa o "sem foto" (responsável e contato) do texto do vendedor
+// Pesquisas gravadas no formato provisório de 26/10/2026 (antes das colunas SemFoto/Responsavel/Contato):
+// separa o "sem foto" que ficou dentro da Observacao
 function lerObservacao(texto) {
   const t = String(texto || '');
   const m = t.match(/^\[SEM FOTO\] Responsável: (.*?) \| Contato: (.*?)(?: \| Obs: ([\s\S]*))?$/);

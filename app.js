@@ -638,9 +638,9 @@ function telaFotos() {
       <span>Não foi possível tirar as fotos<br><small>Informe quem passou o preço</small></span></label>
     <div id="camposSemFoto" ${P.semFoto ? '' : 'hidden'}>
       <label class="campo"><span>Responsável pela informação:</span>
-        <input class="inp" id="respNome" maxlength="80" autocomplete="off" placeholder="Nome de quem informou o preço" value="${esc(P.responsavel || '')}"></label>
+        <input class="inp" id="respNome" maxlength="150" autocomplete="off" placeholder="Nome de quem informou o preço" value="${esc(P.responsavel || '')}"></label>
       <label class="campo"><span>Contato do responsável:</span>
-        <input class="inp" id="respContato" maxlength="60" autocomplete="off" inputmode="tel" placeholder="Telefone ou e-mail" value="${esc(P.contatoResponsavel || '')}"></label>
+        <input class="inp" id="respContato" maxlength="100" autocomplete="off" inputmode="tel" placeholder="Telefone ou e-mail" value="${esc(P.contatoResponsavel || '')}"></label>
     </div>
     <div class="rodape"><button class="btn" id="seguir">Revisar pesquisa</button></div>`;
   const fts = $('#fts');
@@ -896,7 +896,9 @@ const deRemoto = r => ({
   mobil: { nome: r.ProdutoMobil, codigos: String(r.CodigosMobil || '').split(' ').filter(Boolean) },
   conc: { id: r.IdConcorrente, nome: r.ProdutoConcorrente, marca: r.Marca, grupo: r.Grupo || '' },
   similaridade: r.Similaridade, embalagem: r.Embalagem, preco: Number(r.Preco),
-  precoUnidade: r.PrecoPorUnidade == null ? null : Number(r.PrecoPorUnidade), unidade: r.Unidade, ...Nuvem.lerObservacao(r.Observacao),
+  precoUnidade: r.PrecoPorUnidade == null ? null : Number(r.PrecoPorUnidade), unidade: r.Unidade,
+  ...(r.SemFoto ? { semFoto: true, responsavel: r.ResponsavelInformacao || '', contatoResponsavel: r.ContatoResponsavel || '', obs: r.Observacao || '' }
+    : Nuvem.lerObservacao(r.Observacao)),
   fotosUrl: { produto: r.FotoProdutoUrl, etiqueta: r.FotoEtiquetaUrl }, enviado: true, remoto: true,
 });
 
@@ -984,8 +986,15 @@ async function sincronizar() {
             if (p.enviado) await Nuvem.atualizarPesquisa(p.id, { FotoProdutoUrl: urls.produto, FotoEtiquetaUrl: urls.etiqueta });
           } catch (e) { p.erroFotos = e.message; } // a pesquisa sobe mesmo assim; as fotos tentam de novo depois
         }
+        if (p.enviado && p.semFoto && !p.colunasSemFoto) {
+          const obs = (p.obs || '').trim(); // tira o formato provisório "[SEM FOTO] ..." da Observacao
+          await Nuvem.atualizarPesquisa(p.id, { ...Nuvem.camposSemFoto(p), ...(obs ? { Observacao: obs } : {}) }, obs ? [] : ['Observacao']);
+          p.colunasSemFoto = true;
+          await DB.salvar(p);
+        }
         if (!p.enviado) {
           await Nuvem.enviarPesquisa(p);
+          if (p.semFoto) p.colunasSemFoto = true;
           p.enviado = true; p.enviadoEm = new Date().toISOString(); delete p.erroEnvio;
           await DB.salvar(p);
           r.enviados++;
