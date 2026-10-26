@@ -113,7 +113,7 @@ const Nuvem = (() => {
       SegmentoMobil: reg.mobil.segmento, ViscosidadeMobil: reg.mobil.viscosidade,
       IdConcorrente: reg.conc.id, ProdutoConcorrente: reg.conc.nome, Marca: reg.conc.marca, Grupo: reg.conc.grupo,
       Similaridade: reg.similaridade, Embalagem: reg.embalagem, Preco: reg.preco,
-      PrecoPorUnidade: reg.precoUnidade, Unidade: reg.unidade, Observacao: reg.obs,
+      PrecoPorUnidade: reg.precoUnidade, Unidade: reg.unidade, Observacao: montarObservacao(reg),
       FotoProdutoUrl: f.produto, FotoEtiquetaUrl: f.etiqueta, VersaoApp: reg.versao || CFG.VERSAO,
     };
     try {
@@ -123,6 +123,19 @@ const Nuvem = (() => {
       if (/duplicate key/i.test(e.message)) return 'ja_recebido'; // reenvio do mesmo Id = sucesso
       throw e;
     }
+  }
+
+  /* "Sem foto": o banco ainda não tem colunas para responsável e contato, então vão na Observacao
+   * (nvarchar 300) num formato fixo, fácil de separar no BI:
+   *   [SEM FOTO] Responsável: Fulano | Contato: (19) 99999-0000 | Obs: texto do vendedor
+   * Quando o Steven criar colunas próprias, trocar para gravá-las aqui. */
+  function montarObservacao(reg) {
+    const obs = (reg.obs || '').trim();
+    if (!reg.semFoto) return obs;
+    const cab = `[SEM FOTO] Responsável: ${reg.responsavel} | Contato: ${reg.contatoResponsavel}`.slice(0, 300);
+    if (!obs) return cab;
+    const resto = 300 - cab.length - ' | Obs: '.length;
+    return resto > 10 ? `${cab} | Obs: ${obs.length > resto ? obs.slice(0, resto - 1) + '…' : obs}` : cab;
   }
 
   const atualizarPesquisa = (id, campos) =>
@@ -189,7 +202,7 @@ const Nuvem = (() => {
   }
 
   return {
-    diagnostico,
+    diagnostico, lerObservacao,
     configurado, fotosConfiguradas, iniciar, entrar, sair,
     get conta() { return conta; },
     carregarClientes, enviarPesquisa, atualizarPesquisa, anular, historico, subirFoto,
@@ -219,5 +232,13 @@ function modoTeste() {
     carregarClientes: async progresso => { if (progresso) progresso(CLIENTES_TESTE.length); return CLIENTES_TESTE; },
     enviarPesquisa: semBanco, atualizarPesquisa: semBanco, anular: semBanco, subirFoto: semBanco,
     historico: async () => [],
+    lerObservacao,
   };
+}
+
+// Lê a Observacao gravada no banco e separa o "sem foto" (responsável e contato) do texto do vendedor
+function lerObservacao(texto) {
+  const t = String(texto || '');
+  const m = t.match(/^\[SEM FOTO\] Responsável: (.*?) \| Contato: (.*?)(?: \| Obs: ([\s\S]*))?$/);
+  return m ? { semFoto: true, responsavel: m[1], contatoResponsavel: m[2], obs: m[3] || '' } : { obs: t };
 }

@@ -634,6 +634,14 @@ function telaFotos() {
   app.innerHTML = `${contexto(4)}
     <p class="dica">As fotos são tiradas na hora pela câmera do app e recebem data, hora e código do cliente.</p>
     <div class="fotos" id="fts"></div>
+    <label class="check"><input type="checkbox" id="semFoto" ${P.semFoto ? 'checked' : ''}>
+      <span>Não foi possível tirar as fotos<br><small>Informe quem passou o preço</small></span></label>
+    <div id="camposSemFoto" ${P.semFoto ? '' : 'hidden'}>
+      <label class="campo"><span>Responsável pela informação:</span>
+        <input class="inp" id="respNome" maxlength="80" autocomplete="off" placeholder="Nome de quem informou o preço" value="${esc(P.responsavel || '')}"></label>
+      <label class="campo"><span>Contato do responsável:</span>
+        <input class="inp" id="respContato" maxlength="60" autocomplete="off" inputmode="tel" placeholder="Telefone ou e-mail" value="${esc(P.contatoResponsavel || '')}"></label>
+    </div>
     <div class="rodape"><button class="btn" id="seguir">Revisar pesquisa</button></div>`;
   const fts = $('#fts');
   for (const [k, titulo, dica] of FOTOS) {
@@ -649,8 +657,21 @@ function telaFotos() {
     };
     fts.appendChild(b);
   }
-  const ok = FOTOS.every(([k]) => P.fotos[k]);
-  $('#seguir').disabled = !ok;
+  // segue com as 2 fotos OU, marcando "sem foto", com responsável e contato preenchidos
+  const validar = () => {
+    const fotosOk = FOTOS.every(([k]) => P.fotos[k]);
+    const respOk = P.semFoto && (P.responsavel || '').trim().length >= 2 && (P.contatoResponsavel || '').trim().length >= 3;
+    $('#seguir').disabled = !(fotosOk || respOk);
+  };
+  $('#semFoto').onchange = e => {
+    P.semFoto = e.target.checked;
+    $('#camposSemFoto').hidden = !P.semFoto;
+    if (P.semFoto) $('#respNome').focus();
+    validar();
+  };
+  $('#respNome').oninput = e => { P.responsavel = e.target.value; validar(); };
+  $('#respContato').oninput = e => { P.contatoResponsavel = e.target.value; validar(); };
+  validar();
   $('#seguir').onclick = () => irPara('revisao');
 }
 
@@ -737,7 +758,9 @@ function telaRevisao() {
       <div class="l"><b>Embalagem</b><span>${esc(P.embalagem)}</span></div>
       <div class="l"><b>Preço</b><span><span class="preco">${brl(P.preco)}</span>${l ? `<br><small style="color:var(--muted)">${brl(P.preco / l)} por ${/kg|g\b/i.test(P.embalagem) ? 'kg' : 'L'}</small>` : ''}</span></div>
     </div>
-    <div class="mini-fotos">${FOTOS.map(([k, t]) => `<figure><img src="${URL.createObjectURL(P.fotos[k])}" alt="${t}"><figcaption>${t}</figcaption></figure>`).join('')}</div>
+      ${P.semFoto ? `<div class="l"><b>Responsável</b><span>${esc(P.responsavel)}<br><small style="color:var(--muted)">${esc(P.contatoResponsavel)}</small></span></div>` : ''}
+    </div>
+    ${FOTOS.some(([k]) => P.fotos[k]) ? `<div class="mini-fotos">${FOTOS.filter(([k]) => P.fotos[k]).map(([k, t]) => `<figure><img src="${URL.createObjectURL(P.fotos[k])}" alt="${t}"><figcaption>${t}</figcaption></figure>`).join('')}</div>` : ''}
     </div>
     <label class="campo" style="margin-top:14px"><span>Observação (opcional)</span>
       <textarea class="inp" id="obs" maxlength="300" placeholder="Ex.: preço promocional, leve 3 pague 2…">${esc(P.obs || '')}</textarea></label>
@@ -764,6 +787,9 @@ async function finalizar() {
     unidade: /kg|g\b/i.test(P.embalagem) ? 'kg' : 'L',
     obs: (P.obs || '').trim(),
     fotos: { ...P.fotos },
+    semFoto: !!P.semFoto,
+    responsavel: P.semFoto ? (P.responsavel || '').trim() : '',
+    contatoResponsavel: P.semFoto ? (P.contatoResponsavel || '').trim() : '',
     versao: CONFIG.VERSAO,
     enviado: false,   // fila: sobe para o banco quando houver sinal
   };
@@ -870,7 +896,7 @@ const deRemoto = r => ({
   mobil: { nome: r.ProdutoMobil, codigos: String(r.CodigosMobil || '').split(' ').filter(Boolean) },
   conc: { id: r.IdConcorrente, nome: r.ProdutoConcorrente, marca: r.Marca, grupo: r.Grupo || '' },
   similaridade: r.Similaridade, embalagem: r.Embalagem, preco: Number(r.Preco),
-  precoUnidade: r.PrecoPorUnidade == null ? null : Number(r.PrecoPorUnidade), unidade: r.Unidade, obs: r.Observacao || '',
+  precoUnidade: r.PrecoPorUnidade == null ? null : Number(r.PrecoPorUnidade), unidade: r.Unidade, ...Nuvem.lerObservacao(r.Observacao),
   fotosUrl: { produto: r.FotoProdutoUrl, etiqueta: r.FotoEtiquetaUrl }, enviado: true, remoto: true,
 });
 
@@ -946,17 +972,16 @@ async function sincronizar() {
         }
         if (p.anulada) continue;
         // pasta diferente da regra atual (ex.: enviadas na regra antiga AAAA/MM/cliente) = envia de novo e troca o link
-        if (Nuvem.fotosConfiguradas && p.fotos && p.fotos.produto && (!p.fotosUrl || p.fotosPasta !== pastaFotos(p))) {
+        if (Nuvem.fotosConfiguradas && p.fotos && (p.fotos.produto || p.fotos.etiqueta) && (!p.fotosUrl || p.fotosPasta !== pastaFotos(p))) {
           try {
             const pasta = pastaFotos(p);
-            p.fotosUrl = {
-              produto: await Nuvem.subirFoto(p.fotos.produto, `${pasta}/${p.id}_produto.jpg`),
-              etiqueta: await Nuvem.subirFoto(p.fotos.etiqueta, `${pasta}/${p.id}_etiqueta.jpg`),
-            };
+            const urls = {};
+            for (const k of ['produto', 'etiqueta']) if (p.fotos[k]) urls[k] = await Nuvem.subirFoto(p.fotos[k], `${pasta}/${p.id}_${k}.jpg`);
+            p.fotosUrl = urls;
             p.fotosPasta = pasta;
             delete p.erroFotos;
             await DB.salvar(p);
-            if (p.enviado) await Nuvem.atualizarPesquisa(p.id, { FotoProdutoUrl: p.fotosUrl.produto, FotoEtiquetaUrl: p.fotosUrl.etiqueta });
+            if (p.enviado) await Nuvem.atualizarPesquisa(p.id, { FotoProdutoUrl: urls.produto, FotoEtiquetaUrl: urls.etiqueta });
           } catch (e) { p.erroFotos = e.message; } // a pesquisa sobe mesmo assim; as fotos tentam de novo depois
         }
         if (!p.enviado) {
@@ -1029,6 +1054,7 @@ function detalhe(p) {
       <div class="l"><b>Marca</b><span>${esc(p.conc.marca)} (${esc(p.conc.grupo)})</span></div>
       <div class="l"><b>Preço</b><span><span class="preco">${brl(p.preco)}</span> · ${esc(p.embalagem)}${p.precoUnidade ? `<br><small style="color:var(--muted)">${brl(p.precoUnidade)} por ${p.unidade}</small>` : ''}</span></div>
       ${p.obs ? `<div class="l"><b>Obs.</b><span>${esc(p.obs)}</span></div>` : ''}
+      ${p.semFoto ? `<div class="l"><b>Sem foto</b><span>Responsável: ${esc(p.responsavel)}<br>Contato: ${esc(p.contatoResponsavel)}</span></div>` : ''}
       <div class="l"><b>Registrado por</b><span>${esc(p.usuario)}</span></div>
       <div class="l"><b>Situação</b><span>${esc(envio)}</span></div>
       ${p.erroFotos ? `<div class="l"><b>Fotos</b><span>${esc(p.erroFotos)}</span></div>` : ''}
@@ -1058,12 +1084,12 @@ function exportarCsv(lista) {
   if (!lista.length) return toast('Nada para exportar');
   const cab = ['Data', 'Usuario', 'Cod_Cliente', 'Cliente', 'Cidade', 'Vendedor_Carteira', 'Segmento_Cliente',
     'Produto_Mobil', 'Codigos_Mobil', 'ID_Concorrente', 'Produto_Concorrente', 'Marca', 'Grupo', 'Similaridade',
-    'Embalagem', 'Preco', 'Preco_por_L_kg', 'Observacao'];
+    'Embalagem', 'Preco', 'Preco_por_L_kg', 'Observacao', 'Sem_Foto', 'Responsavel_Informacao', 'Contato_Responsavel'];
   const num = v => v == null ? '' : String(v).replace('.', ',');
   const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const linhas = lista.map(p => [dataHora(p.data), p.usuario, p.cliente.cod, p.cliente.nome, p.cliente.cidade, p.cliente.vendedor,
     p.cliente.segmento, p.mobil.nome, p.mobil.codigos.join(' '), p.conc.id, p.conc.nome, p.conc.marca, p.conc.grupo,
-    p.similaridade, p.embalagem, num(p.preco), num(p.precoUnidade), p.obs].map(q).join(';'));
+    p.similaridade, p.embalagem, num(p.preco), num(p.precoUnidade), p.obs, p.semFoto ? 'Sim' : 'Não', p.responsavel || '', p.contatoResponsavel || ''].map(q).join(';'));
   const blob = new Blob(['﻿' + [cab.join(';'), ...linhas].join('\r\n')], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
