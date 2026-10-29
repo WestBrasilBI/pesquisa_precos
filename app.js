@@ -634,6 +634,10 @@ function telaFotos() {
   app.innerHTML = `${contexto(4)}
     <p class="dica">As fotos são tiradas na hora pela câmera do app e recebem data, hora e código do cliente.</p>
     <div class="fotos" id="fts"></div>
+    <div class="anexos">
+      <label class="btn sec anexar"><input type="file" id="arquivo" accept="${ANEXO_ACEITA}" hidden>📎 Anexar arquivo<small>PDF, foto da galeria, print ou documento</small></label>
+      <div class="lista-anexos" id="listaAnexos"></div>
+    </div>
     <label class="check"><input type="checkbox" id="semFoto" ${P.semFoto ? 'checked' : ''}>
       <span>Não foi possível tirar as fotos<br><small>Informe quem passou o preço</small></span></label>
     <div id="camposSemFoto" ${P.semFoto ? '' : 'hidden'}>
@@ -657,12 +661,33 @@ function telaFotos() {
     };
     fts.appendChild(b);
   }
-  // segue com as 2 fotos OU, marcando "sem foto", com responsável e contato preenchidos
+  // segue com as 2 fotos, OU com pelo menos 1 arquivo anexado, OU marcando "sem foto" com responsável e contato
   const validar = () => {
     const fotosOk = FOTOS.every(([k]) => P.fotos[k]);
+    const anexoOk = (P.anexos || []).length > 0;
     const respOk = P.semFoto && (P.responsavel || '').trim().length >= 2 && (P.contatoResponsavel || '').trim().length >= 3;
-    $('#seguir').disabled = !(fotosOk || respOk);
+    $('#seguir').disabled = !(fotosOk || anexoOk || respOk);
   };
+  const desenharAnexos = () => {
+    const el = $('#listaAnexos');
+    el.innerHTML = (P.anexos || []).map((a, i) => `<div class="anexo"><span class="anexo-ico">${a.tipo === 'application/pdf' ? 'PDF' : /^image\//.test(a.tipo) ? 'IMG' : 'DOC'}</span>
+      <span class="anexo-nome">${esc(a.nome)}<small>${tamanho(a.blob.size)}</small></span>
+      <button class="anexo-x" data-i="${i}" aria-label="Remover">✕</button></div>`).join('');
+    el.querySelectorAll('.anexo-x').forEach(b => b.onclick = () => { P.anexos.splice(+b.dataset.i, 1); desenharAnexos(); validar(); });
+    $('.anexar').classList.toggle('cheio', (P.anexos || []).length >= ANEXO_MAX);
+  };
+  $('#arquivo').onchange = async e => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    try {
+      P.anexos = P.anexos || [];
+      if (P.anexos.length >= ANEXO_MAX) return toast(`No máximo ${ANEXO_MAX} arquivos por pesquisa.`);
+      P.anexos.push(await prepararAnexo(f));
+      desenharAnexos(); validar();
+    } catch (err) { toast(err.message, 4000); }
+  };
+  desenharAnexos();
   $('#semFoto').onchange = e => {
     P.semFoto = e.target.checked;
     $('#camposSemFoto').hidden = !P.semFoto;
@@ -714,15 +739,38 @@ $('#camDisparo').onclick = async () => {
   fecharCamera(foto);
 };
 
+/* ---------- arquivos anexados (comprovante além da câmera)
+ * Imagens: reduzidas e carimbadas com "ANEXO", data/hora, cliente e e-mail (como as fotos da câmera).
+ * PDF e documentos: vão como estão, até 4 MB (limite do envio simples ao SharePoint). */
+const ANEXO_MAX = 3;
+const ANEXO_LIMITE = 4 * 1024 * 1024;
+const ANEXO_ACEITA = 'image/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx,.txt';
+const tamanho = b => b < 1024 * 1024 ? `${Math.max(1, Math.round(b / 1024))} KB` : `${(b / 1048576).toFixed(1).replace('.', ',')} MB`;
+
+async function prepararAnexo(f) {
+  const nome = f.name || 'arquivo';
+  if (/^image\//.test(f.type)) {
+    try {
+      const url = URL.createObjectURL(f);
+      const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+      const blob = await carimbar(img, img.naturalWidth, img.naturalHeight, 'ANEXO');
+      URL.revokeObjectURL(url);
+      return { nome: nome.replace(/\.[^.]+$/, '') + '.jpg', tipo: 'image/jpeg', blob };
+    } catch { /* formato que o navegador não abre (ex.: HEIC): vai como está */ }
+  }
+  if (f.size > ANEXO_LIMITE) throw new Error(`"${nome}" tem ${tamanho(f.size)}. O limite é 4 MB por arquivo.`);
+  return { nome, tipo: f.type || 'application/octet-stream', blob: f };
+}
+
 // Reduz para no máx. 1600px e grava data/hora + cliente + usuário na própria imagem
-function carimbar(fonte, w, h) {
+function carimbar(fonte, w, h, rotulo = '') {
   const esc_ = Math.min(1, 1600 / Math.max(w, h));
   const cv = document.createElement('canvas');
   cv.width = Math.round(w * esc_); cv.height = Math.round(h * esc_);
   const g = cv.getContext('2d');
   g.drawImage(fonte, 0, 0, cv.width, cv.height);
   const fs = Math.max(14, Math.round(cv.width / 42));
-  const txt = `${new Date().toLocaleString('pt-BR')} · Cliente ${P.cliente.cod} · ${sessao.email}`;
+  const txt = `${rotulo ? rotulo + ' · ' : ''}${new Date().toLocaleString('pt-BR')} · Cliente ${P.cliente.cod} · ${sessao.email}`;
   g.fillStyle = 'rgba(0,0,0,.55)';
   g.fillRect(0, cv.height - fs * 1.9, cv.width, fs * 1.9);
   g.fillStyle = '#fff';
@@ -760,6 +808,7 @@ function telaRevisao() {
     </div>
       ${P.semFoto ? `<div class="l"><b>Responsável</b><span>${esc(P.responsavel)}<br><small style="color:var(--muted)">${esc(P.contatoResponsavel)}</small></span></div>` : ''}
     </div>
+    ${(P.anexos || []).length ? `<div class="rev" style="margin-top:6px"><div class="l"><b>Arquivos</b><span>${P.anexos.map(a => esc(a.nome)).join('<br>')}</span></div></div>` : ''}
     ${FOTOS.some(([k]) => P.fotos[k]) ? `<div class="mini-fotos">${FOTOS.filter(([k]) => P.fotos[k]).map(([k, t]) => `<figure><img src="${URL.createObjectURL(P.fotos[k])}" alt="${t}"><figcaption>${t}</figcaption></figure>`).join('')}</div>` : ''}
     </div>
     <label class="campo" style="margin-top:14px"><span>Observação (opcional)</span>
@@ -787,6 +836,7 @@ async function finalizar() {
     unidade: /kg|g\b/i.test(P.embalagem) ? 'kg' : 'L',
     obs: (P.obs || '').trim(),
     fotos: { ...P.fotos },
+    anexos: (P.anexos || []).map(a => ({ ...a })),
     semFoto: !!P.semFoto,
     responsavel: P.semFoto ? (P.responsavel || '').trim() : '',
     contatoResponsavel: P.semFoto ? (P.contatoResponsavel || '').trim() : '',
@@ -900,6 +950,7 @@ const deRemoto = r => ({
   ...(r.SemFoto ? { semFoto: true, responsavel: r.ResponsavelInformacao || '', contatoResponsavel: r.ContatoResponsavel || '', obs: r.Observacao || '' }
     : Nuvem.lerObservacao(r.Observacao)),
   fotosUrl: { produto: r.FotoProdutoUrl, etiqueta: r.FotoEtiquetaUrl }, enviado: true, remoto: true,
+  anexosUrl: r.ArquivosUrl ? String(r.ArquivosUrl).split(' | ').filter(Boolean) : undefined,
 });
 
 // Banco + celular, sem repetir: o registro local fica (tem as fotos), marcado como enviado se já está no banco
@@ -992,6 +1043,20 @@ async function sincronizar() {
           p.colunasSemFoto = true;
           await DB.salvar(p);
         }
+        if (Nuvem.fotosConfiguradas && (p.anexos || []).length && (!p.anexosUrl || p.anexosPasta !== pastaFotos(p))) {
+          try {
+            const pasta = pastaFotos(p);
+            const urls = [];
+            for (const [i, an] of p.anexos.entries()) {
+              const nomeSeguro = an.nome.replace(/["*:<>?/\\|#%]/g, '-').slice(-80);
+              urls.push(await Nuvem.subirFoto(an.blob, `${pasta}/${p.id}_anexo${i + 1}_${nomeSeguro}`, an.tipo));
+            }
+            p.anexosUrl = urls; p.anexosPasta = pasta;
+            delete p.erroAnexos;
+            await DB.salvar(p);
+            if (p.enviado && CONFIG.COLUNA_ARQUIVOS) await Nuvem.atualizarPesquisa(p.id, { ArquivosUrl: urls.join(' | ') });
+          } catch (e) { p.erroAnexos = e.message; }
+        }
         if (!p.enviado) {
           await Nuvem.enviarPesquisa(p);
           if (p.semFoto) p.colunasSemFoto = true;
@@ -1063,6 +1128,10 @@ function detalhe(p) {
       <div class="l"><b>Marca</b><span>${esc(p.conc.marca)} (${esc(p.conc.grupo)})</span></div>
       <div class="l"><b>Preço</b><span><span class="preco">${brl(p.preco)}</span> · ${esc(p.embalagem)}${p.precoUnidade ? `<br><small style="color:var(--muted)">${brl(p.precoUnidade)} por ${p.unidade}</small>` : ''}</span></div>
       ${p.obs ? `<div class="l"><b>Obs.</b><span>${esc(p.obs)}</span></div>` : ''}
+      ${(p.anexos || []).length || (p.anexosUrl || []).length ? `<div class="l"><b>Arquivos</b><span>${(p.anexos || []).length
+        ? p.anexos.map((an, i) => `<a class="link" href="${URL.createObjectURL(an.blob)}" target="_blank" rel="noopener">${esc(an.nome)}</a>${p.anexosUrl && p.anexosUrl[i] ? '' : ' <small>(no celular)</small>'}`).join('<br>')
+        : p.anexosUrl.map((u, i) => `<a class="link" href="${esc(u)}" target="_blank" rel="noopener">Arquivo ${i + 1}: abrir no SharePoint</a>`).join('<br>')}</span></div>` : ''}
+      ${p.erroAnexos ? `<div class="l"><b>Arquivos</b><span>${esc(p.erroAnexos)}</span></div>` : ''}
       ${p.semFoto ? `<div class="l"><b>Sem foto</b><span>Responsável: ${esc(p.responsavel)}<br>Contato: ${esc(p.contatoResponsavel)}</span></div>` : ''}
       <div class="l"><b>Registrado por</b><span>${esc(p.usuario)}</span></div>
       <div class="l"><b>Situação</b><span>${esc(envio)}</span></div>
@@ -1093,12 +1162,12 @@ function exportarCsv(lista) {
   if (!lista.length) return toast('Nada para exportar');
   const cab = ['Data', 'Usuario', 'Cod_Cliente', 'Cliente', 'Cidade', 'Vendedor_Carteira', 'Segmento_Cliente',
     'Produto_Mobil', 'Codigos_Mobil', 'ID_Concorrente', 'Produto_Concorrente', 'Marca', 'Grupo', 'Similaridade',
-    'Embalagem', 'Preco', 'Preco_por_L_kg', 'Observacao', 'Sem_Foto', 'Responsavel_Informacao', 'Contato_Responsavel'];
+    'Embalagem', 'Preco', 'Preco_por_L_kg', 'Observacao', 'Sem_Foto', 'Responsavel_Informacao', 'Contato_Responsavel', 'Arquivos'];
   const num = v => v == null ? '' : String(v).replace('.', ',');
   const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const linhas = lista.map(p => [dataHora(p.data), p.usuario, p.cliente.cod, p.cliente.nome, p.cliente.cidade, p.cliente.vendedor,
     p.cliente.segmento, p.mobil.nome, p.mobil.codigos.join(' '), p.conc.id, p.conc.nome, p.conc.marca, p.conc.grupo,
-    p.similaridade, p.embalagem, num(p.preco), num(p.precoUnidade), p.obs, p.semFoto ? 'Sim' : 'Não', p.responsavel || '', p.contatoResponsavel || ''].map(q).join(';'));
+    p.similaridade, p.embalagem, num(p.preco), num(p.precoUnidade), p.obs, p.semFoto ? 'Sim' : 'Não', p.responsavel || '', p.contatoResponsavel || '', (p.anexosUrl || (p.anexos || []).map(a => a.nome)).join(' | ')].map(q).join(';'));
   const blob = new Blob(['﻿' + [cab.join(';'), ...linhas].join('\r\n')], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);

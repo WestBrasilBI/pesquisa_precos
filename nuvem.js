@@ -114,6 +114,7 @@ const Nuvem = (() => {
       IdConcorrente: reg.conc.id, ProdutoConcorrente: reg.conc.nome, Marca: reg.conc.marca, Grupo: reg.conc.grupo,
       Similaridade: reg.similaridade, Embalagem: reg.embalagem, Preco: reg.preco,
       PrecoPorUnidade: reg.precoUnidade, Unidade: reg.unidade, Observacao: (reg.obs || '').trim(), ...camposSemFoto(reg),
+      ...(CFG.COLUNA_ARQUIVOS && reg.anexosUrl ? { ArquivosUrl: reg.anexosUrl.join(' | ') } : {}),
       FotoProdutoUrl: f.produto, FotoEtiquetaUrl: f.etiqueta, VersaoApp: reg.versao || CFG.VERSAO,
     };
     try {
@@ -144,7 +145,7 @@ const Nuvem = (() => {
     const campos = `Id DataHora UsuarioEmail ClienteKey CodCliente ClienteNome Cidade VendedorCarteira SegmentoCliente
       ProdutoMobil CodigosMobil IdConcorrente ProdutoConcorrente Marca Grupo Similaridade
       Embalagem Preco PrecoPorUnidade Unidade Observacao FotoProdutoUrl FotoEtiquetaUrl
-      SemFoto ResponsavelInformacao ContatoResponsavel`;
+      SemFoto ResponsavelInformacao ContatoResponsavel${CFG.COLUNA_ARQUIVOS ? ' ArquivosUrl' : ''}`;
     const lista = [];
     let depois = null;
     do {
@@ -161,11 +162,11 @@ const Nuvem = (() => {
    * O app só tem permissão na pasta "Pesquisa de Preço - Fotos" (driveId + pastaId no config.js), por isso grava
    * pelo caminho relativo a ela: /drives/{driveId}/items/{pastaId}:/{subpastas}/{arquivo}:/content.
    * As subpastas (mês/cliente) são criadas pelo próprio SharePoint no envio. */
-  async function subirFoto(blob, caminho) {
+  async function subirFoto(blob, caminho, tipo = 'image/jpeg') {
     const url = `https://graph.microsoft.com/v1.0/drives/${SP.driveId}/items/${SP.pastaId}:/${caminho.split('/').map(encodeURIComponent).join('/')}:/content`;
     const r = await fetch(url, {
       method: 'PUT',
-      headers: { Authorization: 'Bearer ' + await token(CFG.ESCOPO_FOTOS, false), 'Content-Type': 'image/jpeg' },
+      headers: { Authorization: 'Bearer ' + await token(CFG.ESCOPO_FOTOS, false), 'Content-Type': tipo },
       body: blob,
     });
     if (!r.ok) {

@@ -4,7 +4,7 @@
  * Permissões delegadas aprovadas: Power BI Service → GraphQLApi.Execute.All, Microsoft Graph → User.Read e
  * Microsoft Graph → Files.SelectedOperations.Selected (write só na pasta das fotos, 21/10/2026). */
 window.CONFIG = {
-  VERSAO: '2026.10.26b',
+  VERSAO: '2026.10.29',
 
   TENANT_ID: '1516fbda-e5c5-429f-8c31-bf8dc4dedc55',   // WEST
   CLIENT_ID: '7b109c34-9e32-47c8-970d-4f03ed0c0d08',   // West Brasil - Pesquisa de Preços
@@ -25,6 +25,11 @@ window.CONFIG = {
     driveId: 'b!KvJ0PdsG8EC3xtmOqBH21Wsrj4dStQFEjpulHIn_9VtItG2HDsWuTIsP3EX_haAF', // biblioteca Documentos Compartilhados
     pastaId: '01GM3U576V4CDLQFKQTBC2HT6A64TMN2CV',                                 // pasta Pesquisa de Preço - Fotos
   },
+
+  // Arquivos anexados (PDF, foto da galeria, documento) sobem na mesma pasta das fotos.
+  // O banco ainda NÃO tem coluna para o link deles: quando o Steven criar "ArquivosUrl" (texto longo) e liberar
+  // na API, trocar para true e o link passa a ser gravado na pesquisa (vários links separados por " | ").
+  COLUNA_ARQUIVOS: false,
 
   // Lista de clientes guardada no celular: recarrega do banco depois deste tempo (horas)
   CLIENTES_VALIDADE_H: 12,
