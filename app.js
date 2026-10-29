@@ -1061,15 +1061,15 @@ async function sincronizar() {
           p.anexosNoBanco = true;
           await DB.salvar(p);
         }
+        // Correções de pesquisas já enviadas: SÓ colunas que o vendedor pode alterar.
+        // Vendedor não tem update em Observacao (regra do banco, 29/10/2026): nunca mandar Observacao aqui.
         if (CONFIG.COLUNA_TIPO_PRECO && p.enviado && p.tipoPreco && !p.tipoNoBanco) {
-          const obs = (p.obs || '').trim(); // tira o "[CUSTO]"/"[VENDA]" provisório da Observacao
-          await Nuvem.atualizarPesquisa(p.id, { TipoPreco: p.tipoPreco, ...(obs ? { Observacao: obs } : {}) }, obs ? [] : ['Observacao']);
+          if (p.tipoPreco === 'Custo') await Nuvem.atualizarPesquisa(p.id, { TipoPreco: 'Custo' }); // "Venda" já é o padrão
           p.tipoNoBanco = true;
           await DB.salvar(p);
         }
         if (p.enviado && p.semFoto && !p.colunasSemFoto) {
-          const obs = (p.obs || '').trim(); // tira o formato provisório "[SEM FOTO] ..." da Observacao
-          await Nuvem.atualizarPesquisa(p.id, { ...Nuvem.camposSemFoto(p), ...(obs ? { Observacao: obs } : {}) }, obs ? [] : ['Observacao']);
+          await Nuvem.atualizarPesquisa(p.id, Nuvem.camposSemFoto(p));
           p.colunasSemFoto = true;
           await DB.salvar(p);
         }
@@ -1092,6 +1092,8 @@ async function sincronizar() {
           } catch (e) { p.erroAnexos = e.message; }
         }
         if (!p.enviado) {
+          const lida = Nuvem.lerObservacao(p.obs);
+          if (lida.tipoPreco) { p.obs = lida.obs; p.tipoPreco = p.tipoPreco || lida.tipoPreco; await DB.salvar(p); }
           await Nuvem.enviarPesquisa(p);
           if (p.semFoto) p.colunasSemFoto = true;
           if (CONFIG.COLUNA_TIPO_PRECO && p.tipoPreco) p.tipoNoBanco = true;
