@@ -114,7 +114,7 @@ const Nuvem = (() => {
       IdConcorrente: reg.conc.id, ProdutoConcorrente: reg.conc.nome, Marca: reg.conc.marca, Grupo: reg.conc.grupo,
       Similaridade: reg.similaridade, Embalagem: reg.embalagem, Preco: reg.preco,
       PrecoPorUnidade: reg.precoUnidade, Unidade: reg.unidade, Observacao: (reg.obs || '').trim(), ...camposSemFoto(reg),
-      ...(CFG.COLUNA_ARQUIVOS && reg.anexosUrl ? { ArquivosUrl: reg.anexosUrl.join(' | ') } : {}),
+      ...(CFG.COLUNA_ARQUIVOS && (reg.anexosUrl || []).length ? { ArquivosUrl: juntarLinks(reg.anexosUrl) } : {}),
       FotoProdutoUrl: f.produto, FotoEtiquetaUrl: f.etiqueta, VersaoApp: reg.versao || CFG.VERSAO,
     };
     try {
@@ -133,6 +133,17 @@ const Nuvem = (() => {
     : { SemFoto: false };
 
   // nulos: colunas a esvaziar (ex.: ['Observacao']); o gqlObj ignora vazio/null, então vão à parte
+  // ArquivosUrl: links separados por " | ", até 2000 caracteres (entra o máximo de links inteiros que couber)
+  function juntarLinks(urls) {
+    let txt = '';
+    for (const u of urls || []) {
+      const prox = txt ? `${txt} | ${u}` : u;
+      if (prox.length > 2000) break;
+      txt = prox;
+    }
+    return txt;
+  }
+
   const atualizarPesquisa = (id, campos, nulos = []) => {
     const partes = gqlObj(campos).slice(2, -2).trim();
     const obj = '{ ' + [partes, ...nulos.map(c => `${c}: null`)].filter(Boolean).join(', ') + ' }';
@@ -201,7 +212,7 @@ const Nuvem = (() => {
   }
 
   return {
-    diagnostico, lerObservacao, camposSemFoto,
+    diagnostico, lerObservacao, camposSemFoto, juntarLinks,
     configurado, fotosConfiguradas, iniciar, entrar, sair,
     get conta() { return conta; },
     carregarClientes, enviarPesquisa, atualizarPesquisa, anular, historico, subirFoto,

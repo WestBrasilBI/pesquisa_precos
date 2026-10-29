@@ -1037,6 +1037,12 @@ async function sincronizar() {
             if (p.enviado) await Nuvem.atualizarPesquisa(p.id, { FotoProdutoUrl: urls.produto, FotoEtiquetaUrl: urls.etiqueta });
           } catch (e) { p.erroFotos = e.message; } // a pesquisa sobe mesmo assim; as fotos tentam de novo depois
         }
+        // anexos que subiram antes da coluna ArquivosUrl existir (29/10/2026): grava o link agora
+        if (CONFIG.COLUNA_ARQUIVOS && p.enviado && (p.anexosUrl || []).length && !p.anexosNoBanco) {
+          await Nuvem.atualizarPesquisa(p.id, { ArquivosUrl: Nuvem.juntarLinks(p.anexosUrl) });
+          p.anexosNoBanco = true;
+          await DB.salvar(p);
+        }
         if (p.enviado && p.semFoto && !p.colunasSemFoto) {
           const obs = (p.obs || '').trim(); // tira o formato provisório "[SEM FOTO] ..." da Observacao
           await Nuvem.atualizarPesquisa(p.id, { ...Nuvem.camposSemFoto(p), ...(obs ? { Observacao: obs } : {}) }, obs ? [] : ['Observacao']);
@@ -1054,12 +1060,17 @@ async function sincronizar() {
             p.anexosUrl = urls; p.anexosPasta = pasta;
             delete p.erroAnexos;
             await DB.salvar(p);
-            if (p.enviado && CONFIG.COLUNA_ARQUIVOS) await Nuvem.atualizarPesquisa(p.id, { ArquivosUrl: urls.join(' | ') });
+            if (p.enviado && CONFIG.COLUNA_ARQUIVOS) {
+              await Nuvem.atualizarPesquisa(p.id, { ArquivosUrl: Nuvem.juntarLinks(urls) });
+              p.anexosNoBanco = true;
+              await DB.salvar(p);
+            }
           } catch (e) { p.erroAnexos = e.message; }
         }
         if (!p.enviado) {
           await Nuvem.enviarPesquisa(p);
           if (p.semFoto) p.colunasSemFoto = true;
+          if (CONFIG.COLUNA_ARQUIVOS && (p.anexosUrl || []).length) p.anexosNoBanco = true;
           p.enviado = true; p.enviadoEm = new Date().toISOString(); delete p.erroEnvio;
           await DB.salvar(p);
           r.enviados++;
