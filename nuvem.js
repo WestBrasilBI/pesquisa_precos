@@ -113,7 +113,8 @@ const Nuvem = (() => {
       SegmentoMobil: reg.mobil.segmento, ViscosidadeMobil: reg.mobil.viscosidade,
       IdConcorrente: reg.conc.id, ProdutoConcorrente: reg.conc.nome, Marca: reg.conc.marca, Grupo: reg.conc.grupo,
       Similaridade: reg.similaridade, Embalagem: reg.embalagem, Preco: reg.preco,
-      PrecoPorUnidade: reg.precoUnidade, Unidade: reg.unidade, Observacao: (reg.obs || '').trim(), ...camposSemFoto(reg),
+      PrecoPorUnidade: reg.precoUnidade, Unidade: reg.unidade, Observacao: observacaoBanco(reg), ...camposSemFoto(reg),
+      ...(CFG.COLUNA_TIPO_PRECO && reg.tipoPreco ? { TipoPreco: reg.tipoPreco } : {}),
       ...(CFG.COLUNA_ARQUIVOS && (reg.anexosUrl || []).length ? { ArquivosUrl: juntarLinks(reg.anexosUrl) } : {}),
       FotoProdutoUrl: f.produto, FotoEtiquetaUrl: f.etiqueta, VersaoApp: reg.versao || CFG.VERSAO,
     };
@@ -133,6 +134,16 @@ const Nuvem = (() => {
     : { SemFoto: false };
 
   // nulos: colunas a esvaziar (ex.: ['Observacao']); o gqlObj ignora vazio/null, então vão à parte
+  /* Tipo do preço (Custo = o que o cliente paga / Venda = o que o cliente pratica).
+   * Enquanto o banco não tiver a coluna TipoPreco (CONFIG.COLUNA_TIPO_PRECO = false), vai no começo da
+   * Observacao: "[CUSTO] texto" ou "[VENDA] texto" (até 300 caracteres no total). */
+  function observacaoBanco(reg) {
+    const obs = (reg.obs || '').trim();
+    if (CFG.COLUNA_TIPO_PRECO || !reg.tipoPreco) return obs;
+    const pre = reg.tipoPreco === 'Custo' ? '[CUSTO]' : '[VENDA]';
+    return (obs ? `${pre} ${obs}` : pre).slice(0, 300);
+  }
+
   // ArquivosUrl: links separados por " | ", até 2000 caracteres (entra o máximo de links inteiros que couber)
   function juntarLinks(urls) {
     let txt = '';
@@ -156,7 +167,7 @@ const Nuvem = (() => {
     const campos = `Id DataHora UsuarioEmail ClienteKey CodCliente ClienteNome Cidade VendedorCarteira SegmentoCliente
       ProdutoMobil CodigosMobil IdConcorrente ProdutoConcorrente Marca Grupo Similaridade
       Embalagem Preco PrecoPorUnidade Unidade Observacao FotoProdutoUrl FotoEtiquetaUrl
-      SemFoto ResponsavelInformacao ContatoResponsavel${CFG.COLUNA_ARQUIVOS ? ' ArquivosUrl' : ''}`;
+      SemFoto ResponsavelInformacao ContatoResponsavel${CFG.COLUNA_ARQUIVOS ? ' ArquivosUrl' : ''}${CFG.COLUNA_TIPO_PRECO ? ' TipoPreco' : ''}`;
     const lista = [];
     let depois = null;
     do {
@@ -249,7 +260,11 @@ function modoTeste() {
 // Pesquisas gravadas no formato provisório de 26/10/2026 (antes das colunas SemFoto/Responsavel/Contato):
 // separa o "sem foto" que ficou dentro da Observacao
 function lerObservacao(texto) {
-  const t = String(texto || '');
+  let t = String(texto || '');
+  // "[CUSTO] ..." / "[VENDA] ..." = tipo do preço gravado antes da coluna TipoPreco
+  const tp = t.match(/^\[(CUSTO|VENDA)\] ?/);
+  const tipo = tp ? { tipoPreco: tp[1] === 'CUSTO' ? 'Custo' : 'Venda' } : {};
+  if (tp) t = t.slice(tp[0].length);
   const m = t.match(/^\[SEM FOTO\] Responsável: (.*?) \| Contato: (.*?)(?: \| Obs: ([\s\S]*))?$/);
-  return m ? { semFoto: true, responsavel: m[1], contatoResponsavel: m[2], obs: m[3] || '' } : { obs: t };
+  return { ...tipo, ...(m ? { semFoto: true, responsavel: m[1], contatoResponsavel: m[2], obs: m[3] || '' } : { obs: t }) };
 }

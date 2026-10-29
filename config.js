@@ -4,7 +4,7 @@
  * Permissões delegadas aprovadas: Power BI Service → GraphQLApi.Execute.All, Microsoft Graph → User.Read e
  * Microsoft Graph → Files.SelectedOperations.Selected (write só na pasta das fotos, 21/10/2026). */
 window.CONFIG = {
-  VERSAO: '2026.10.29b',
+  VERSAO: '2026.10.29c',
 
   TENANT_ID: '1516fbda-e5c5-429f-8c31-bf8dc4dedc55',   // WEST
   CLIENT_ID: '7b109c34-9e32-47c8-970d-4f03ed0c0d08',   // West Brasil - Pesquisa de Preços
@@ -29,6 +29,12 @@ window.CONFIG = {
   // Arquivos anexados (PDF, foto da galeria, documento) sobem na mesma pasta das fotos e o link vai na coluna
   // ArquivosUrl (até 2000 caracteres, links separados por " | "), criada e liberada na API pelo Steven em 29/10/2026.
   COLUNA_ARQUIVOS: true,
+
+  // Tipo do preço (Custo / Preço de venda), escolhido na etapa do preço.
+  // O banco ainda NÃO tem coluna: vai no começo da Observacao ("[CUSTO] ..." / "[VENDA] ...").
+  // Quando o Steven criar "TipoPreco" (texto: Custo | Venda) e liberar na API, trocar para true:
+  // o app passa a gravar na coluna e corrige sozinho as pesquisas já enviadas.
+  COLUNA_TIPO_PRECO: false,
 
   // Lista de clientes guardada no celular: recarrega do banco depois deste tempo (horas)
   CLIENTES_VALIDADE_H: 12,

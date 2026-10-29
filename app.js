@@ -598,7 +598,12 @@ function telaPreco() {
   app.innerHTML = `${contexto(4)}
     <div class="sec-t" style="margin-top:4px">Embalagem na prateleira</div>
     <div class="embs" id="embs">${embs.map(e => `<button class="chip ${P.embalagem === e ? 'on' : ''}" data-e="${esc(e)}">${esc(e)}</button>`).join('')}</div>
-    <div class="sec-t">Preço de venda</div>
+    <div class="sec-t">O valor pesquisado é</div>
+    <div class="tipos" id="tipos">
+      <button class="tipo ${P.tipoPreco === 'Custo' ? 'on' : ''}" data-t="Custo"><b>Custo</b><small>O que o cliente paga</small></button>
+      <button class="tipo ${P.tipoPreco === 'Venda' ? 'on' : ''}" data-t="Venda"><b>Preço de venda</b><small>O que o cliente pratica</small></button>
+    </div>
+    <div class="sec-t" id="tituloValor">${P.tipoPreco === 'Custo' ? 'Valor do custo' : P.tipoPreco === 'Venda' ? 'Valor de venda' : 'Valor'}</div>
     <div class="preco-box">
       <input class="preco-inp" id="preco" inputmode="numeric" autocomplete="off" value="${P.preco ? brl(P.preco) : 'R$ 0,00'}">
       <small id="porL">&nbsp;</small>
@@ -608,8 +613,15 @@ function telaPreco() {
   const atualizar = () => {
     const l = P.embalagem ? litros(P.embalagem) : null;
     $('#porL').textContent = P.preco && l ? `${brl(P.preco / l)} por ${unid(P.embalagem)}` : P.embalagem ? ' ' : 'Escolha a embalagem';
-    $('#seguir').disabled = !(P.preco > 0 && P.embalagem);
+    $('#seguir').disabled = !(P.preco > 0 && P.embalagem && P.tipoPreco);
   };
+  // tipo obrigatório e sem padrão: o vendedor sempre escolhe se é custo ou preço de venda
+  $('#tipos').querySelectorAll('.tipo').forEach(b => b.onclick = () => {
+    P.tipoPreco = b.dataset.t;
+    $('#tipos').querySelectorAll('.tipo').forEach(x => x.classList.toggle('on', x === b));
+    $('#tituloValor').textContent = P.tipoPreco === 'Custo' ? 'Valor do custo' : 'Valor de venda';
+    atualizar();
+  });
   $('#embs').querySelectorAll('.chip').forEach(b => b.onclick = () => {
     P.embalagem = b.dataset.e;
     $('#embs').querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === b));
@@ -804,7 +816,7 @@ function telaRevisao() {
       <div class="l"><b>Produto Mobil</b><span>${esc(P.mobil.nome)}</span></div>
       <div class="l"><b>Concorrente</b><span>${esc(P.conc.n)}<br><small style="color:var(--muted)">${esc(P.conc.g)} · semelhança ${P.similaridade}%</small></span></div>
       <div class="l"><b>Embalagem</b><span>${esc(P.embalagem)}</span></div>
-      <div class="l"><b>Preço</b><span><span class="preco">${brl(P.preco)}</span>${l ? `<br><small style="color:var(--muted)">${brl(P.preco / l)} por ${/kg|g\b/i.test(P.embalagem) ? 'kg' : 'L'}</small>` : ''}</span></div>
+      <div class="l"><b>${rotuloTipo(P)}</b><span><span class="preco">${brl(P.preco)}</span>${l ? `<br><small style="color:var(--muted)">${brl(P.preco / l)} por ${/kg|g\b/i.test(P.embalagem) ? 'kg' : 'L'}</small>` : ''}</span></div>
     </div>
       ${P.semFoto ? `<div class="l"><b>Responsável</b><span>${esc(P.responsavel)}<br><small style="color:var(--muted)">${esc(P.contatoResponsavel)}</small></span></div>` : ''}
     </div>
@@ -837,6 +849,7 @@ async function finalizar() {
     obs: (P.obs || '').trim(),
     fotos: { ...P.fotos },
     anexos: (P.anexos || []).map(a => ({ ...a })),
+    tipoPreco: P.tipoPreco,
     semFoto: !!P.semFoto,
     responsavel: P.semFoto ? (P.responsavel || '').trim() : '',
     contatoResponsavel: P.semFoto ? (P.contatoResponsavel || '').trim() : '',
@@ -871,7 +884,9 @@ function telaSucesso(envio) {
 }
 
 /* ============================================================ histórico */
-const H = { aba: 'lista', cliente: '', cidade: '', mobil: '', marca: '', periodo: '', agrupar: 'conc', q: '' };
+const H = { aba: 'lista', cliente: '', cidade: '', mobil: '', marca: '', tipo: '', periodo: '', agrupar: 'conc', q: '' };
+// Custo = o que o cliente paga; Venda = o que o cliente pratica. Pesquisas antigas (sem tipo) eram "Preço de venda".
+const rotuloTipo = p => p.tipoPreco === 'Custo' ? 'Custo' : 'Preço de venda';
 
 async function telaHistorico() {
   const todas = juntar(await DB.todas(), HIST.remoto || []);
@@ -887,6 +902,7 @@ async function telaHistorico() {
       <select class="fsel" id="fCid">${opc(p => p.cliente.cidade, 'Todas as cidades')}</select>
       <select class="fsel" id="fMob">${opc(p => p.mobil.nome, 'Todos os Mobil')}</select>
       <select class="fsel" id="fMar">${opc(p => p.conc.marca, 'Todas as marcas')}</select>
+      <select class="fsel" id="fTip"><option value="">Custo e venda</option><option value="Custo">Só custo</option><option value="Venda">Só preço de venda</option></select>
       <select class="fsel" id="fPer"><option value="">Todo o período</option><option value="7">Últimos 7 dias</option><option value="30">Últimos 30 dias</option><option value="90">Últimos 90 dias</option></select>
       <select class="fsel" id="fAgr" ${H.aba === 'lista' ? 'hidden' : ''}>
         <option value="conc">Agrupar: produto concorrente</option><option value="mobil">Agrupar: produto Mobil</option>
@@ -896,7 +912,7 @@ async function telaHistorico() {
     <div id="hres"></div>
     <div class="acoes"><button class="btn sec" id="bCsv">Exportar planilha (CSV)</button><button class="btn sec" id="bAtu">Atualizar</button></div>`;
 
-  const sels = { fCli: 'cliente', fCid: 'cidade', fMob: 'mobil', fMar: 'marca', fPer: 'periodo', fAgr: 'agrupar' };
+  const sels = { fCli: 'cliente', fCid: 'cidade', fMob: 'mobil', fMar: 'marca', fTip: 'tipo', fPer: 'periodo', fAgr: 'agrupar' };
   for (const [id, k] of Object.entries(sels)) {
     const el = $('#' + id); el.value = H[k];
     el.onchange = () => { H[k] = el.value; desenhar(); };
@@ -915,6 +931,7 @@ async function telaHistorico() {
       (!H.cidade || p.cliente.cidade === H.cidade) &&
       (!H.mobil || p.mobil.nome === H.mobil) &&
       (!H.marca || p.conc.marca === H.marca) &&
+      (!H.tipo || (H.tipo === 'Custo') === (p.tipoPreco === 'Custo')) &&
       (!lim || new Date(p.data) >= lim) &&
       (!tk.length || tk.every(t => compact(`${p.cliente.cod} ${p.cliente.nome} ${p.cliente.cidade} ${p.mobil.nome} ${p.conc.nome} ${p.conc.marca}`).includes(t))));
   };
@@ -949,6 +966,7 @@ const deRemoto = r => ({
   precoUnidade: r.PrecoPorUnidade == null ? null : Number(r.PrecoPorUnidade), unidade: r.Unidade,
   ...(r.SemFoto ? { semFoto: true, responsavel: r.ResponsavelInformacao || '', contatoResponsavel: r.ContatoResponsavel || '', obs: r.Observacao || '' }
     : Nuvem.lerObservacao(r.Observacao)),
+  ...(r.TipoPreco ? { tipoPreco: r.TipoPreco } : {}),
   fotosUrl: { produto: r.FotoProdutoUrl, etiqueta: r.FotoEtiquetaUrl }, enviado: true, remoto: true,
   anexosUrl: r.ArquivosUrl ? String(r.ArquivosUrl).split(' | ').filter(Boolean) : undefined,
 });
@@ -1043,6 +1061,12 @@ async function sincronizar() {
           p.anexosNoBanco = true;
           await DB.salvar(p);
         }
+        if (CONFIG.COLUNA_TIPO_PRECO && p.enviado && p.tipoPreco && !p.tipoNoBanco) {
+          const obs = (p.obs || '').trim(); // tira o "[CUSTO]"/"[VENDA]" provisório da Observacao
+          await Nuvem.atualizarPesquisa(p.id, { TipoPreco: p.tipoPreco, ...(obs ? { Observacao: obs } : {}) }, obs ? [] : ['Observacao']);
+          p.tipoNoBanco = true;
+          await DB.salvar(p);
+        }
         if (p.enviado && p.semFoto && !p.colunasSemFoto) {
           const obs = (p.obs || '').trim(); // tira o formato provisório "[SEM FOTO] ..." da Observacao
           await Nuvem.atualizarPesquisa(p.id, { ...Nuvem.camposSemFoto(p), ...(obs ? { Observacao: obs } : {}) }, obs ? [] : ['Observacao']);
@@ -1070,6 +1094,7 @@ async function sincronizar() {
         if (!p.enviado) {
           await Nuvem.enviarPesquisa(p);
           if (p.semFoto) p.colunasSemFoto = true;
+          if (CONFIG.COLUNA_TIPO_PRECO && p.tipoPreco) p.tipoNoBanco = true;
           if (CONFIG.COLUNA_ARQUIVOS && (p.anexosUrl || []).length) p.anexosNoBanco = true;
           p.enviado = true; p.enviadoEm = new Date().toISOString(); delete p.erroEnvio;
           await DB.salvar(p);
@@ -1099,13 +1124,14 @@ function itemHistorico(p) {
   b.insertAdjacentHTML('beforeend', `<div class="tx"><div class="t1">${esc(p.conc.nome)}</div>
     <div class="t2">${esc(p.cliente.cod)} · ${esc(p.cliente.nome)} · ${esc(p.cliente.cidade)}</div>
     <div class="t2">vs ${esc(p.mobil.nome)} · ${dataHora(p.data)}${quem}</div>${st}</div>
-    <div class="pr">${brl(p.preco)}<small>${esc(p.embalagem)}</small></div>`);
+    <div class="pr">${brl(p.preco)}<small>${esc(p.embalagem)} · ${p.tipoPreco === 'Custo' ? 'custo' : 'venda'}</small></div>`);
   b.onclick = () => detalhe(p);
   return b;
 }
 
 function tabelaResumo(lista) {
-  const chave = { conc: p => p.conc.nome, mobil: p => p.mobil.nome, marca: p => p.conc.marca, cliente: p => `${p.cliente.cod} · ${p.cliente.nome}`, cidade: p => p.cliente.cidade }[H.agrupar];
+  const base = { conc: p => p.conc.nome, mobil: p => p.mobil.nome, marca: p => p.conc.marca, cliente: p => `${p.cliente.cod} · ${p.cliente.nome}`, cidade: p => p.cliente.cidade }[H.agrupar];
+  const chave = p => `${base(p)} · ${rotuloTipo(p)}`; // custo e preço de venda nunca entram na mesma média
   const g = new Map();
   for (const p of lista) {
     const k = chave(p);
@@ -1137,7 +1163,7 @@ function detalhe(p) {
       <div class="l"><b>Cliente</b><span>${esc(p.cliente.cod)} · ${esc(p.cliente.nome)}<br><small style="color:var(--muted)">${esc(p.cliente.cidade)}</small></span></div>
       <div class="l"><b>Produto Mobil</b><span>${esc(p.mobil.nome)}</span></div>
       <div class="l"><b>Marca</b><span>${esc(p.conc.marca)} (${esc(p.conc.grupo)})</span></div>
-      <div class="l"><b>Preço</b><span><span class="preco">${brl(p.preco)}</span> · ${esc(p.embalagem)}${p.precoUnidade ? `<br><small style="color:var(--muted)">${brl(p.precoUnidade)} por ${p.unidade}</small>` : ''}</span></div>
+      <div class="l"><b>${rotuloTipo(p)}</b><span><span class="preco">${brl(p.preco)}</span> · ${esc(p.embalagem)}${p.precoUnidade ? `<br><small style="color:var(--muted)">${brl(p.precoUnidade)} por ${p.unidade}</small>` : ''}</span></div>
       ${p.obs ? `<div class="l"><b>Obs.</b><span>${esc(p.obs)}</span></div>` : ''}
       ${(p.anexos || []).length || (p.anexosUrl || []).length ? `<div class="l"><b>Arquivos</b><span>${(p.anexos || []).length
         ? p.anexos.map((an, i) => `<a class="link" href="${URL.createObjectURL(an.blob)}" target="_blank" rel="noopener">${esc(an.nome)}</a>${p.anexosUrl && p.anexosUrl[i] ? '' : ' <small>(no celular)</small>'}`).join('<br>')
@@ -1173,12 +1199,12 @@ function exportarCsv(lista) {
   if (!lista.length) return toast('Nada para exportar');
   const cab = ['Data', 'Usuario', 'Cod_Cliente', 'Cliente', 'Cidade', 'Vendedor_Carteira', 'Segmento_Cliente',
     'Produto_Mobil', 'Codigos_Mobil', 'ID_Concorrente', 'Produto_Concorrente', 'Marca', 'Grupo', 'Similaridade',
-    'Embalagem', 'Preco', 'Preco_por_L_kg', 'Observacao', 'Sem_Foto', 'Responsavel_Informacao', 'Contato_Responsavel', 'Arquivos'];
+    'Tipo_Preco', 'Embalagem', 'Preco', 'Preco_por_L_kg', 'Observacao', 'Sem_Foto', 'Responsavel_Informacao', 'Contato_Responsavel', 'Arquivos'];
   const num = v => v == null ? '' : String(v).replace('.', ',');
   const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const linhas = lista.map(p => [dataHora(p.data), p.usuario, p.cliente.cod, p.cliente.nome, p.cliente.cidade, p.cliente.vendedor,
     p.cliente.segmento, p.mobil.nome, p.mobil.codigos.join(' '), p.conc.id, p.conc.nome, p.conc.marca, p.conc.grupo,
-    p.similaridade, p.embalagem, num(p.preco), num(p.precoUnidade), p.obs, p.semFoto ? 'Sim' : 'Não', p.responsavel || '', p.contatoResponsavel || '', (p.anexosUrl || (p.anexos || []).map(a => a.nome)).join(' | ')].map(q).join(';'));
+    p.similaridade, rotuloTipo(p), p.embalagem, num(p.preco), num(p.precoUnidade), p.obs, p.semFoto ? 'Sim' : 'Não', p.responsavel || '', p.contatoResponsavel || '', (p.anexosUrl || (p.anexos || []).map(a => a.nome)).join(' | ')].map(q).join(';'));
   const blob = new Blob(['﻿' + [cab.join(';'), ...linhas].join('\r\n')], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);

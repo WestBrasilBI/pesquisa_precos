@@ -207,3 +207,11 @@ code{font-size:12.5px;background:#eef1f5;padding:1px 5px;border-radius:5px}
 .anexo-nome small{display:block;font-weight:500;font-size:12px;color:var(--muted)}
 .anexo-x{flex:none;width:36px;height:36px;border-radius:50%;color:var(--red);font-size:16px}
 .anexo-x:active{background:#fdecee}
+
+/* tipo do preço: Custo / Preço de venda */
+.tipos{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tipo{background:#fff;border:2px solid var(--border);border-radius:var(--r);padding:14px 10px;text-align:center;display:flex;flex-direction:column;gap:3px;box-shadow:var(--shadow)}
+.tipo b{font-size:16px;color:var(--text)}
+.tipo small{font-size:12px;color:var(--muted)}
+.tipo.on{border-color:var(--blue);background:var(--blue-soft)}
+.tipo.on b{color:var(--blue)}
